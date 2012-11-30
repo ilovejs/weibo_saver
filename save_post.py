@@ -7,30 +7,37 @@ import base64
 import re
 import json
 import hashlib
-import thread_pool
 import Queue
 import json
+import time
+from BeautifulSoup import BeautifulSoup
 
+ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-login_data = {
-    'entry': 'weibo',
-    'gateway': '1',
-    'from': '',
-    'savestate': '7',
-    'userticket': '1',
-    'ssosimplelogin': '1',
-    'vsnf': '1',
-    'vsnval': '',
-    'su': '',
-    'service': 'miniblog',
-    'servertime': '',
-    'nonce': '',
-    'pwencode': 'wsse',
-    'sp': '',
-    'encoding': 'UTF-8',
-    'url': 'http://weibo.com/ajaxlogin.php?framelogin=1&callback=parent.sinaSSOController.feedBackUrlCallBack',
-    'returntype': 'META'
-}
+def base62_encode(num, alphabet=ALPHABET):
+    if (num == 0):
+        return alphabet[0]
+    arr = []
+    base = len(alphabet)
+    while num:
+        rem = num % base
+        num = num // base
+        arr.append(alphabet[rem])
+    arr.reverse()
+    return ''.join(arr)
+
+def base62_decode(string, alphabet=ALPHABET):
+    base = len(alphabet)
+    strlen = len(string)
+    num = 0
+
+    idx = 0
+    for char in string:
+        power = (strlen - (idx + 1))
+        num += alphabet.index(char) * (base ** power)
+        idx += 1
+
+    return num
 
 def get_servertime():
     servertime_url = 'http://login.sina.com.cn/sso/prelogin.php?entry=weibo&callback=sinaSSOController.preloginCallBack&su=dW5kZWZpbmVk&client=ssologin.js(v1.3.18)&_=1329806375939'
@@ -117,6 +124,27 @@ def login(username,pwd,cookie_file):
         return do_login(username,pwd,cookie_file)
 
 def do_login(username,pwd,cookie_file):
+    login_data = {
+        'entry': 'weibo',
+        'gateway': '1',
+        'from': '',
+        'savestate': '7',
+        'userticket': '1',
+        'ssosimplelogin': '1',
+        'vsnf': '1',
+        'vsnval': '',
+        'su': '',
+        'service': 'miniblog',
+        'servertime': '',
+        'nonce': '',
+        'pwencode': 'wsse',
+        'sp': '',
+        'encoding': 'UTF-8',
+        'url': 'http://weibo.com/ajaxlogin.php?framelogin=1&callback=parent.sinaSSOController.feedBackUrlCallBack',
+        'returntype': 'META'
+    }
+
+
     cookie_jar2     = cookielib.LWPCookieJar()
     cookie_support2 = urllib2.HTTPCookieProcessor(cookie_jar2)
     opener2         = urllib2.build_opener(cookie_support2, urllib2.HTTPHandler)
@@ -126,7 +154,6 @@ def do_login(username,pwd,cookie_file):
         servertime, nonce = get_servertime()
     except:
         return
-    global login_data
     login_data['servertime'] = servertime
     login_data['nonce'] = nonce
     login_data['su'] = get_user(username)
@@ -151,6 +178,38 @@ def do_login(username,pwd,cookie_file):
         print 'Login error!'
         return 0
 
+def saver(uid):
+    page = 1
+    finished = False
+    while not finished:
+        urls={}
+        urls[0]='http://weibo.com/aj/mblog/mbloglist?_wv=5&count=50&page=%d&uid=%d' % (page,uid)
+        urls[1]='http://weibo.com/aj/mblog/mbloglist?_wv=5&count=15&page=%d&uid=%d&pre_page=%d&pagebar=0' % (page,uid,page)
+        urls[2]='http://weibo.com/aj/mblog/mbloglist?_wv=5&count=15&page=%d&uid=%d&pre_page=%d&pagebar=1' % (page,uid,page)
+        page = page + 1
+        for p in urls:
+            d = urllib2.urlopen(urls[p]).read()
+            n = json.loads(d)
+            soup = BeautifulSoup(n['data'])
+            #print soup.prettify()
+            #murl = (base62_encode(int(mid[::-1][14:21][::-1]))+base62_encode(int(mid[::-1][7:14][::-1]))+base62_encode(int(mid[::-1][0:7][::-1])))
+            #mid = (str(base62_decode(str(murl[::-1][8:12][::-1])))+str(base62_decode(str(murl[::-1][4:8][::-1])))+str(base62_decode(str(murl[::-1][0:4][::-1]))))
+            posts = soup.findAll(attrs={'action-type' : "feed_list_item"})
+            if len(posts)>0:
+                for post in posts:
+                    mid  = post.get('mid')
+                    if mid:
+                        wb_from = post.find("a",{'class' : "S_link2 WB_time"})
+                        murl    = re.sub("/.*/","",str(wb_from.get('href')))
+                        ptime   = str(wb_from.get('title'))
+                        content = re.sub("<[^>]*>", "", str(post.find(attrs={'node-type' : "feed_list_content"})))
+                        print "%s\t%s\t%s" % (str(murl),str(ptime),str(content))
+            else:
+                finished = True
+
+            time.sleep(0.5)
+
+
 def main():
     username     = "18717746277"
     pwd          = "2&huffman"
@@ -158,15 +217,10 @@ def main():
 
     login_status = login(username,pwd,cookie_file)
 
+    # @聂风_ 1259955755
+    uid = 1259955755
     if login_status:
-        begin_url = "http://weibo.com/aj/mblog/mbloglist?_wv=5&page=1"
-        d = urllib2.urlopen(begin_url).read()
-        n = json.loads(d)
-        m = n['data'].replace("\\", "")
-        s = json.dumps(m,ensure_ascii=False).replace("</div>\\n\\t", "$")
-        posts = re.findall(r"(<div[^>]*WB_text[^>]*feed_list_content[^>]*>)([^$]*)", s)
-        for post in posts:
-            print re.sub("<[^>]*>", "", post[1])
+        saver(uid)
 
 
 if __name__  ==  '__main__':
