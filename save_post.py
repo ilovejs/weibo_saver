@@ -5,9 +5,7 @@ import urllib2
 import cookielib
 import base64
 import re
-import json
 import hashlib
-import Queue
 import json
 import time
 from BeautifulSoup import BeautifulSoup
@@ -65,44 +63,6 @@ def get_user(username):
     username = base64.encodestring(username_)[:-1]
     return username
 
-def get_follower(user,page):
-    req_follow = urllib2.Request(url='http://weibo.com/%d/follow?page=%d' % (user,page),)
-    result = urllib2.urlopen(req_follow)
-    text = result.read().decode('utf-8')
-    follows = re.findall(r"(uid=)([0-9]*)(&fnick=)(\S*)(&sex=[f|m]+)\\\">", text)
-
-    for follow in follows:
-        print follow[1]+"\t"+follow[3]
-
-    if page == 1 :
-        follow = re.findall(r"(strong node-type.*follow[^>]*>)(\d*)([^>]*strong>)", text)
-        follows = follow[0][1]
-
-        return (page,user,int(follows))
-    else :
-        return (page,user,0)
-
-def post_crawler(users):
-    thread_pool.Worker.timeout = None
-    wm = thread_pool.WorkerManager(10)
-
-    for user in users:
-        wm.add_job(get_follower, user, 1)
-
-    while True:
-        try:
-            return_item = wm.get_result(True, timeout = 90)
-            current_page = return_item[0]
-            current_user = return_item[1]
-            follows      = return_item[2]
-            print "user:%d page:%d finished" % (current_user,current_page)
-            if follows > 20:
-                pages = (int(follows)+20-1)/20
-                for page in range(2,pages+1):
-                    wm.add_job(get_follower, current_user, page)
-        except Queue.Empty:
-            break
-
 def login(username,pwd,cookie_file):
     if os.path.exists(cookie_file):
         try:
@@ -143,7 +103,6 @@ def do_login(username,pwd,cookie_file):
         'url': 'http://weibo.com/ajaxlogin.php?framelogin=1&callback=parent.sinaSSOController.feedBackUrlCallBack',
         'returntype': 'META'
     }
-
 
     cookie_jar2     = cookielib.LWPCookieJar()
     cookie_support2 = urllib2.HTTPCookieProcessor(cookie_jar2)
@@ -208,7 +167,6 @@ def saver(uid):
                 finished = True
 
             time.sleep(0.5)
-
 
 def main():
     username     = "18717746277"
