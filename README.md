@@ -1,8 +1,8 @@
 **Note:**
 
-第一次使用的时候需要提供用户名和密码，只有登录了才能获取微博。第一次以后，只要cookie有效，就可以使用cookie直接登录。
+第一次使用的时候需要提供用户名和密码，只有登录了才能获取微博内容。第一次使用以后，只要cookie有效，就可以使用cookie直接登录。
 
-本程序不处理验证码，所以如果你正常登录的时候需要输入验证码，可能这个帐号就不能使用这个程序了。
+本程序不能处理验证码，所以如果你正常登录的时候需要输入验证码，那么程序就不能使用这个帐号了。
 
 原则上可以抓取任何人的所有微博,只要提供你想抓取的用户的uid。(不知道什么是 weibo uid？Google it！)
 
@@ -12,7 +12,20 @@
 
 欢迎关注 [@聂风_](http://weibo.com/napoleonu) [http://weibo.com/napoleonu](http://weibo.com/napoleonu)
 
+**Usage**
 
+    ~/weibo_saver (master) $ python save_post.py --help
+    Usage: save_post.py [options] arg 
+     e.g.: save_post.py -i 1259955755 # when cookie file is usable 
+     e.g.: save_post.py -u username -p password -i 1259955755
+    
+    Options:
+      -h, --help            show this help message and exit
+      -u USERNAME, --username=USERNAME
+                            if cookie file is unusable you must provide username and password.
+      -p PASSWORD, --password=PASSWORD
+                            if cookie file is unusable you must provide username and password.
+      -i UID, --uid=UID     the id of the user you want save.
 
 **Result:**
 
