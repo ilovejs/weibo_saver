@@ -12,7 +12,7 @@
 
 欢迎关注 [@聂风_](http://weibo.com/napoleonu) [http://weibo.com/napoleonu](http://weibo.com/napoleonu)
 
-**Usage**
+**Usage:**
 
     ~/weibo_saver (master) $ python save_post.py --help
     Usage: save_post.py [options] arg 
