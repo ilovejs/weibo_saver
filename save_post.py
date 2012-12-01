@@ -1,14 +1,65 @@
+#!/usr/bin/env python
 #coding=utf8
-import os
-import urllib
-import urllib2
-import cookielib
-import base64
-import re
-import hashlib
-import json
-import time
-from BeautifulSoup import BeautifulSoup
+
+try:
+    import os
+    import sys
+    import urllib
+    import urllib2
+    import cookielib
+    import base64
+    import re
+    import hashlib
+    import json
+    import time
+    from BeautifulSoup import BeautifulSoup
+    from optparse import OptionParser
+except ImportError:
+        print >> sys.stderr, """\
+
+There was a problem importing one of the Python modules required to run yum.
+The error leading to this problem was:
+
+%s
+
+Please install a package which provides this module, or
+verify that the module is installed correctly.
+
+It's possible that the above module doesn't match the current version of Python,
+which is:
+
+%s
+
+""" % (sys.exc_value, sys.version)
+        sys.exit(1)
+
+__prog__= "weibo_saver"
+__site__= "http://chaous.com"
+__weibo__= "@聂风_"
+__version__="0.1-beta"
+
+def config_option():
+    usage =  "usage: %prog [options] arg \n"
+    usage += " e.g.: %prog -i 1259955755 # when cookie file is usable \n"
+    usage += " e.g.: %prog -u username -p password -i 1259955755"
+    parser = OptionParser(usage)
+    parser.add_option("-u","--username",dest="username",help="if cookie file is unusable you must provide username and password.")
+    parser.add_option("-p","--password",dest="password",help="if cookie file is unusable you must provide username and password.")
+    parser.add_option("-i","--uid",dest="uid",help="the id of the user you want save.")
+
+    (options, args) = parser.parse_args()
+
+    if not options.username or not options.password:
+        pass
+
+    if not options.uid:
+        parser.error("You must input -i parameters");
+
+    global opt_main
+    opt_main = {}
+    opt_main["username"] = options.username
+    opt_main["password"] = options.password
+    opt_main["uid"] = options.uid
 
 ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
@@ -36,6 +87,14 @@ def base62_decode(string, alphabet=ALPHABET):
         idx += 1
 
     return num
+
+def mid_to_murl(mid):
+    murl = (base62_encode(int(mid[::-1][14:21][::-1]))+base62_encode(int(mid[::-1][7:14][::-1]))+base62_encode(int(mid[::-1][0:7][::-1])))
+    return murl
+
+def murl_to_mid(mid):
+    mid = (str(base62_decode(str(murl[::-1][8:12][::-1])))+str(base62_decode(str(murl[::-1][4:8][::-1])))+str(base62_decode(str(murl[::-1][0:4][::-1]))))
+    return mid
 
 def get_servertime():
     servertime_url = 'http://login.sina.com.cn/sso/prelogin.php?entry=weibo&callback=sinaSSOController.preloginCallBack&su=dW5kZWZpbmVk&client=ssologin.js(v1.3.18)&_=1329806375939'
@@ -71,12 +130,13 @@ def login(username,pwd,cookie_file):
             loaded = 1
         except cookielib.LoadError:
             loaded = 0
-            print 'error loading cookies'
+            print 'Loading cookies error'
 
         if loaded:
             cookie_support = urllib2.HTTPCookieProcessor(cookie_jar)
             opener         = urllib2.build_opener(cookie_support, urllib2.HTTPHandler)
             urllib2.install_opener(opener)
+            print 'Loading cookies success'
             return 1
         else:
             return do_login(username,pwd,cookie_file)
@@ -137,8 +197,22 @@ def do_login(username,pwd,cookie_file):
         print 'Login error!'
         return 0
 
-def saver(uid):
-    page = 1
+def clean_content(content):
+    content = re.sub("<img src=[^>]* alt=\"", "", content)
+    content = re.sub("\" type=\"face\" />", "", content)
+    content = re.sub("<[^>]*>", "", content)
+    content = re.sub("&quot;", "\"", content)
+    content = re.sub("&apos;", "\'", content)
+    content = re.sub("&amp;", "&", content)
+    content = re.sub("&lt;", "<", content)
+    content = re.sub("&gt;", ">", content)
+
+    return content
+
+def saver(uid,output_file):
+    page     = 1
+    uid      = int(uid)
+    weibo    = {}
     finished = False
     while not finished:
         urls={}
@@ -147,38 +221,57 @@ def saver(uid):
         urls[2]='http://weibo.com/aj/mblog/mbloglist?_wv=5&count=15&page=%d&uid=%d&pre_page=%d&pagebar=1' % (page,uid,page)
         page = page + 1
         for p in urls:
-            d = urllib2.urlopen(urls[p]).read()
-            n = json.loads(d)
+            try:
+                d = urllib2.urlopen(urls[p]).read()
+                n = json.loads(d)
+            except:
+                print "Get data error,remove your cookie data and try again"
+                finished = True
+                break
             soup = BeautifulSoup(n['data'])
             #print soup.prettify()
-            #murl = (base62_encode(int(mid[::-1][14:21][::-1]))+base62_encode(int(mid[::-1][7:14][::-1]))+base62_encode(int(mid[::-1][0:7][::-1])))
-            #mid = (str(base62_decode(str(murl[::-1][8:12][::-1])))+str(base62_decode(str(murl[::-1][4:8][::-1])))+str(base62_decode(str(murl[::-1][0:4][::-1]))))
             posts = soup.findAll(attrs={'action-type' : "feed_list_item"})
             if len(posts)>0:
                 for post in posts:
                     mid  = post.get('mid')
                     if mid:
+                        forward = post.get('isforward')
+                        if forward:
+                            origin_nick     = clean_content(str(post.find(attrs={'node-type' : "feed_list_originNick"})))
+                            forward_content = "[%s : %s]" % (origin_nick,clean_content(str(post.find(attrs={'node-type' : "feed_list_reason"}))))
+                        else:
+                            forward_content = ""
                         wb_from = post.find("a",{'class' : "S_link2 WB_time"})
-                        murl    = re.sub("/.*/","",str(wb_from.get('href')))
+                        murl    = str(re.sub("/.*/","",str(wb_from.get('href'))))
                         ptime   = str(wb_from.get('title'))
-                        content = re.sub("<[^>]*>", "", str(post.find(attrs={'node-type' : "feed_list_content"})))
-                        print "%s\t%s\t%s" % (str(murl),str(ptime),str(content))
+                        content = clean_content(str(post.find(attrs={'node-type' : "feed_list_content"})))
+                        weibo[mid] = "%s\t%s\t%s %s\n" % (murl,ptime,content,forward_content)
             else:
                 finished = True
 
             time.sleep(0.5)
 
+        #finished = True
+
+    f = open(output_file,'w')
+    for i in sorted(weibo.items(), key=lambda e:e[0], reverse=False):
+        f.write(i[1])
+
+    f.close()
+
 def main():
-    username     = "18717746277"
-    pwd          = "2&huffman"
+    config_option()
+    username     = opt_main["username"]
+    pwd          = opt_main["password"]
+    uid          = opt_main["uid"]
     cookie_file  = "cookie_file.dat"
+    output_file  = "weibo_post.txt"
 
     login_status = login(username,pwd,cookie_file)
 
     # @聂风_ 1259955755
-    uid = 1259955755
     if login_status:
-        saver(uid)
+        saver(uid,output_file)
 
 
 if __name__  ==  '__main__':
