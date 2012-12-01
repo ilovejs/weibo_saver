@@ -50,7 +50,8 @@ def config_option():
     (options, args) = parser.parse_args()
 
     if not options.username or not options.password:
-        pass
+        options.username = "wrong_user"
+        options.password = "wrong_pass"
 
     if not options.uid:
         parser.error("You must input -i parameters");
@@ -92,12 +93,12 @@ def mid_to_murl(mid):
     murl = (base62_encode(int(mid[::-1][14:21][::-1]))+base62_encode(int(mid[::-1][7:14][::-1]))+base62_encode(int(mid[::-1][0:7][::-1])))
     return murl
 
-def murl_to_mid(mid):
+def murl_to_mid(murl):
     mid = (str(base62_decode(str(murl[::-1][8:12][::-1])))+str(base62_decode(str(murl[::-1][4:8][::-1])))+str(base62_decode(str(murl[::-1][0:4][::-1]))))
     return mid
 
 def get_servertime():
-    servertime_url = 'http://login.sina.com.cn/sso/prelogin.php?entry=weibo&callback=sinaSSOController.preloginCallBack&su=dW5kZWZpbmVk&client=ssologin.js(v1.3.18)&_=1329806375939'
+    servertime_url = 'http://login.sina.com.cn/sso/prelogin.php?entry=weibo&callback=sinaSSOController.preloginCallBack&client=ssologin.js(v1.3.18)'
     data = urllib2.urlopen(servertime_url).read()
     p = re.compile('\((.*)\)')
     try:
@@ -197,6 +198,20 @@ def do_login(username,pwd,cookie_file):
         print 'Login error!'
         return 0
 
+def last_murl(output_file):
+    with open(output_file, 'r') as f:
+        f.seek (0, 2) # Seek @ EOF
+        fsize = f.tell() # Get Size
+        f.seek (max (fsize-1024, 0), 0) # Set pos @ last n chars
+        lines = f.readlines() # Read to end
+    line = lines[-1:] # Get last line
+    murl = '0'
+    if len(line) > 0:
+        murl = re.sub("\t.*", "", line[0])
+        murl = re.sub("\n", "", murl)
+
+    return murl
+
 def clean_content(content):
     content = re.sub("<img src=[^>]* alt=\"", "", content)
     content = re.sub("\" type=\"face\" />", "", content)
@@ -210,15 +225,21 @@ def clean_content(content):
     return content
 
 def saver(uid,output_file):
+    if os.path.exists(output_file):
+        last_mid = int(murl_to_mid(last_murl(output_file)))
+    else:
+        last_mid = 0
     page     = 1
     uid      = int(uid)
     weibo    = {}
     finished = False
+    saved_count = 0 # for top
     while not finished:
         urls={}
         urls[0]='http://weibo.com/aj/mblog/mbloglist?_wv=5&count=50&page=%d&uid=%d' % (page,uid)
         urls[1]='http://weibo.com/aj/mblog/mbloglist?_wv=5&count=15&page=%d&uid=%d&pre_page=%d&pagebar=0' % (page,uid,page)
         urls[2]='http://weibo.com/aj/mblog/mbloglist?_wv=5&count=15&page=%d&uid=%d&pre_page=%d&pagebar=1' % (page,uid,page)
+        print "now page : %d" % page
         page = page + 1
         for p in urls:
             try:
@@ -233,7 +254,7 @@ def saver(uid,output_file):
             posts = soup.findAll(attrs={'action-type' : "feed_list_item"})
             if len(posts)>0:
                 for post in posts:
-                    mid  = post.get('mid')
+                    mid  = int(post.get('mid'))
                     if mid:
                         forward = post.get('isforward')
                         if forward:
@@ -245,7 +266,14 @@ def saver(uid,output_file):
                         murl    = str(re.sub("/.*/","",str(wb_from.get('href'))))
                         ptime   = str(wb_from.get('title'))
                         content = clean_content(str(post.find(attrs={'node-type' : "feed_list_content"})))
-                        weibo[mid] = "%s\t%s\t%s %s\n" % (murl,ptime,content,forward_content)
+
+                        if mid > last_mid:
+                            weibo[mid] = "%s\t%s\t%s %s\n" % (murl,ptime,content,forward_content)
+                        elif saved_count > 2:
+                            finished = True
+                        else:
+                            saved_count = saved_count + 1
+
             else:
                 finished = True
 
@@ -253,11 +281,12 @@ def saver(uid,output_file):
 
         #finished = True
 
-    f = open(output_file,'w')
+    f = open(output_file,'a+')
     for i in sorted(weibo.items(), key=lambda e:e[0], reverse=False):
         f.write(i[1])
 
     f.close()
+
 
 def main():
     config_option()
