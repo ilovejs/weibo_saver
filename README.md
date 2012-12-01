@@ -1,4 +1,4 @@
-**Note**
+**Note:**
 
 第一次使用的时候需要提供用户名和密码，只有登录了才能获取微博。第一次以后，只要cookie有效，就可以使用cookie直接登录。
 
@@ -10,9 +10,11 @@
 
 结果按照时间顺序排序，因此忽略置顶。
 
+欢迎关注 [@聂风_](http://weibo.com/napoleonu) [http://weibo.com/napoleonu](http://weibo.com/napoleonu)
 
 
-**Result**
+
+**Result:**
 
     ~/weibo_saver (master) $ more weibo_post.txt 
     xpYZltWsR       2011-09-26 17:26        嗷 
