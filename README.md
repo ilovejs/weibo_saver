@@ -29,7 +29,7 @@
 
 **Result:**
 
-    ~/weibo_saver (master) $ more weibo_post.txt 
+    ~/weibo_saver (master) $ more weibo_post_1259955755.txt 
     xpYZltWsR       2011-09-26 17:26        嗷 
     y7cgV3Svj       2012-02-26 03:03        Peter Zaitsev在Linkedin上加我，虽然我是菜鸟。。 
     ytvxeFT5m       2012-07-21 20:33        分享图片 #WeicoLomo# 

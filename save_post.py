@@ -294,7 +294,7 @@ def main():
     pwd          = opt_main["password"]
     uid          = opt_main["uid"]
     cookie_file  = "cookie_file.dat"
-    output_file  = "weibo_post.txt"
+    output_file  = "weibo_post_%s.txt" % (uid)
 
     login_status = login(username,pwd,cookie_file)
 
